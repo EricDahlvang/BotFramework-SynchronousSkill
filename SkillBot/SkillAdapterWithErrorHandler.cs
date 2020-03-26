@@ -4,6 +4,8 @@
 // Generated with Bot Builder V4 SDK Template for Visual Studio EchoSkillBot v4.7.0
 
 using System;
+using System.Threading;
+using System.Threading.Tasks;
 using Microsoft.Bot.Builder;
 using Microsoft.Bot.Builder.Integration.AspNet.Core;
 using Microsoft.Bot.Builder.TraceExtensions;
@@ -16,9 +18,12 @@ namespace SkillBot
 {
     public class SkillAdapterWithErrorHandler : BotFrameworkHttpAdapter
     {
+        IConfiguration _configuration;
+
         public SkillAdapterWithErrorHandler(IConfiguration configuration, ICredentialProvider credentialProvider, AuthenticationConfiguration authConfig, ILogger<BotFrameworkHttpAdapter> logger, ConversationState conversationState = null)
             : base(configuration, credentialProvider, authConfig, logger: logger)
         {
+            _configuration = configuration;
             OnTurnError = async (turnContext, exception) =>
             {
                 // Log any leaked exception from the application.
@@ -59,6 +64,35 @@ namespace SkillBot
                     }
                 }
             };
+        }
+    
+        public async Task<string> GetBotSkillToken(ITurnContext turnContext)
+        {
+            var appId = _configuration.GetSection(MicrosoftAppCredentials.MicrosoftAppIdKey)?.Value;
+            var oAuthScope = turnContext.TurnState.Get<string>(OAuthScopeKey);
+            var token = await (await GetAppCredentialsAsync(appId, oAuthScope).ConfigureAwait(false)).GetTokenAsync();
+            return token;
+        }
+
+        private async Task<AppCredentials> GetAppCredentialsAsync(string appId, string oAuthScope, CancellationToken cancellationToken = default)
+        {
+            if (appId == null)
+            {
+                return MicrosoftAppCredentials.Empty;
+            }
+
+            var cacheKey = $"{appId}{oAuthScope}";
+            if (AppCredentialMap.TryGetValue(cacheKey, out var appCredentials))
+            {
+                return appCredentials;
+            }
+
+            // Credentials not found in cache, build them
+            appCredentials = await BuildCredentialsAsync(appId, oAuthScope).ConfigureAwait(false);
+
+            // Cache the credentials for later use
+            AppCredentialMap[cacheKey] = appCredentials;
+            return appCredentials;
         }
     }
 }

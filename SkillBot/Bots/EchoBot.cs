@@ -8,6 +8,7 @@ using System.Net;
 using System.Threading;
 using System.Threading.Tasks;
 using Microsoft.Bot.Builder;
+using Microsoft.Bot.Builder.Integration.AspNet.Core;
 using Microsoft.Bot.Schema;
 using Newtonsoft.Json;
 using Newtonsoft.Json.Linq;
@@ -35,16 +36,19 @@ namespace SkillBot.Bots
 
         protected override async Task<InvokeResponse> OnInvokeActivityAsync(ITurnContext<IInvokeActivity> turnContext, CancellationToken cancellationToken)
         {
+            var token = await (turnContext.Adapter as SkillAdapterWithErrorHandler).GetBotSkillToken(turnContext);
+
             return new InvokeResponse()
             {
                 Status = (int)HttpStatusCode.OK,
                 Body = JObject.FromObject(new
                 {
-                    customdatatype = new
+                    custom_data_type = new
                     {
-                        title = "Star Wars",
-                        link = "http://www.starwars.com",
-                    }
+                        title = "Bot Framework",
+                        link = "http://dev.botframework.com",
+                    },
+                    bot_token = token
                 })
             };
         }
