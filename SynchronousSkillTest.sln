@@ -1,0 +1,31 @@
+﻿
+Microsoft Visual Studio Solution File, Format Version 12.00
+# Visual Studio Version 16
+VisualStudioVersion = 16.0.29911.84
+MinimumVisualStudioVersion = 10.0.40219.1
+Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "ParentBot", "ParentBot\ParentBot.csproj", "{C270EF94-6ED6-4A5E-B6CF-8B2057173674}"
+EndProject
+Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "SkillBot", "SkillBot\SkillBot.csproj", "{D7127CE4-48AB-4DF2-A0CE-C659239EDF7C}"
+EndProject
+Global
+	GlobalSection(SolutionConfigurationPlatforms) = preSolution
+		Debug|Any CPU = Debug|Any CPU
+		Release|Any CPU = Release|Any CPU
+	EndGlobalSection
+	GlobalSection(ProjectConfigurationPlatforms) = postSolution
+		{C270EF94-6ED6-4A5E-B6CF-8B2057173674}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{C270EF94-6ED6-4A5E-B6CF-8B2057173674}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{C270EF94-6ED6-4A5E-B6CF-8B2057173674}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{C270EF94-6ED6-4A5E-B6CF-8B2057173674}.Release|Any CPU.Build.0 = Release|Any CPU
+		{D7127CE4-48AB-4DF2-A0CE-C659239EDF7C}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{D7127CE4-48AB-4DF2-A0CE-C659239EDF7C}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{D7127CE4-48AB-4DF2-A0CE-C659239EDF7C}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{D7127CE4-48AB-4DF2-A0CE-C659239EDF7C}.Release|Any CPU.Build.0 = Release|Any CPU
+	EndGlobalSection
+	GlobalSection(SolutionProperties) = preSolution
+		HideSolutionNode = FALSE
+	EndGlobalSection
+	GlobalSection(ExtensibilityGlobals) = postSolution
+		SolutionGuid = {566223B2-E30F-47F4-8016-750774E2EF27}
+	EndGlobalSection
+EndGlobal
