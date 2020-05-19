@@ -149,7 +149,7 @@ namespace SkillBot.Bots
             var reply = MessageFactory.Text("OnTeamsTaskModuleSubmitAsync Value: " + JsonConvert.SerializeObject(taskModuleRequest));
             await turnContext.SendActivityAsync(reply);
 
-            if ((taskModuleRequest.Data as JObject).ContainsKey("color"))
+            if((taskModuleRequest.Data as JObject).ContainsKey("color"))
             {
                 if ((taskModuleRequest.Data as JObject).Value<string>("color") == "Blue")
                 {

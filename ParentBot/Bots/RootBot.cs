@@ -49,52 +49,61 @@ namespace ParentBot.Bots
             }
         }
 
-
-        private Attachment GetOptionsAttachment()
+        private JObject GetCardActionValue(string type, string skillId)
         {
-            HeroCard heroCard = null;
+            return JObject.Parse("{ \"type\" : \"" + type + "\", \"skillid\" : \"" + skillId + "\" }");
+        }
+
+        private IEnumerable<Attachment> GetOptionsAttachment()
+        {
+            var attachments = new List<Attachment>();
             if (_skillsConfig.Skills.Count > 0)
             {
-                var buttons = new List<CardAction>();
-
-                //  Hard code for testing synchronous operations
-               // buttons.Add(new CardAction(ActionTypes.ImBack, title: $"health test invoke", text: "health test invoke", value: "health test invoke"));
-                //buttons.Add(new CardAction(ActionTypes.ImBack, title: $"health test expectReplies", text: "health test expectReplies", value: "health test expectReplies"));
-                buttons.Add(new CardAction(ActionTypes.ImBack, title: $"invoke", text: "invoke", value: "invoke"));
-                buttons.Add(new CardAction(ActionTypes.ImBack, title: $"expectReplies Echo", text: "expectReplies Echo", value: "expectReplies"));
-                buttons.Add(new CardAction(ActionTypes.ImBack, title: $"teams adaptive card", text: "teams adaptive card", value: "teams adaptive card"));
-                buttons.Add(new CardAction("invoke", "teams invoke", null, null, null, JObject.Parse(@"{ ""key"" : ""value"" }")));
-                
-                heroCard = new HeroCard
+                foreach (var skill in _skillsConfig.Skills)
                 {
-                    Title = "Skills Options",
-                    Text = "Click one of the buttons below to initiate that skill.",
-                    Buttons = buttons
-                };
+                    var buttons = new List<CardAction>();
+
+                    // for testing synchronous operations
+                    buttons.Add(new CardAction(ActionTypes.MessageBack, title: $"MessageBack invoke to skill", text: "invoke skill", displayText: "MessageBack to invoke skill", value: GetCardActionValue("MessageBack invoke", skill.Value.Id)));
+                    buttons.Add(new CardAction(ActionTypes.MessageBack, title: $"MessageBack expectReplies to skill", text: "MessageBack expectReplies", displayText: "MessageBack to expectReplies skill", value: GetCardActionValue("MessageBack expectReplies", skill.Value.Id)));
+                    buttons.Add(new CardAction(ActionTypes.MessageBack, title: $"MessageBack teams adaptive card", text: "teams adaptive card", displayText: "MessageBack get teams adaptive card", value: GetCardActionValue("MessageBack get adaptive card", skill.Value.Id)));
+                    buttons.Add(new CardAction("invoke", title: "invoke to invoke skill", null, text: "invoke", displayText: "invoke to invoke skill", value: GetCardActionValue("invoke invoke", skill.Value.Id)));
+
+                    var heroCard = new HeroCard
+                    {
+                        Title = $"Skills Options for {skill.Value.Id}-{skill.Value.AppId}",
+                        Text = "Click one of the buttons below to initiate that skill.",
+                        Buttons = buttons
+                    };
+                    attachments.Add(heroCard.ToAttachment());
+                }
             }
             else
             {
-                heroCard = new HeroCard
+                attachments.Add(new HeroCard
                 {
                     Title = "No Skills configured...",
                     Subtitle = "Configure some skills in appsettings.json",
-                };
+                }.ToAttachment());
             }
 
-            return heroCard.ToAttachment();
+            return attachments;
         }
 
-        private Attachment GetAdaptiveCardWithInvokeAction()
+        private Attachment GetAdaptiveCardWithInvokeAction(Activity activity)
         {
+            var skillId = ((JObject)activity.Value).Value<string>("skillid");
+            var skill = _skillsConfig.Skills[skillId];
+
             var adaptiveCard = new AdaptiveCard();
             adaptiveCard.Body.Add(new AdaptiveTextBlock("Bot Builder Invoke Action"));
-            var action4 = new CardAction("invoke", "invoke", null, null, null, JObject.Parse(@"{ ""key"" : ""value"" }"));
+            var action4 = new CardAction("invoke", "custom health check invoke", null, null, null, GetCardActionValue("Adaptive Card invoke", skill.Id));
             adaptiveCard.Actions.Add(action4.ToAdaptiveCardAction());
 
             return adaptiveCard.ToAttachment();
         }
 
-        private async Task SendToSkill(ITurnContext turnContext, BotFrameworkSkill targetSkill, Activity activity = null, CancellationToken cancellationToken = default)
+        private async Task<object> SendToSkill(ITurnContext turnContext, BotFrameworkSkill targetSkill, Activity activity = null, CancellationToken cancellationToken = default)
         {
             // NOTE: Always SaveChanges() before calling a skill so that any activity generated by the skill
             // will have access to current accurate state.
@@ -104,11 +113,15 @@ namespace ParentBot.Bots
 
             if (activityToSend.Type == ActivityTypes.Invoke)
             {
-                var invokeResponse = await PostActivityToSkill<JObject>(targetSkill, activityToSend, cancellationToken);
+                var invokeResponse = await PostActivityToSkill<object>(targetSkill, activityToSend, cancellationToken);
 
                 if (invokeResponse != null)
                 {
-                    await turnContext.SendActivityAsync("Received Invoke Response Body: " + invokeResponse.ToString());
+                    if(activity.Name == "task/fetch" || activity.Name == "task/submit")
+                    {
+                        return invokeResponse;
+                    }
+                    await turnContext.SendActivityAsync("Received Invoke Response Body: " + (invokeResponse as JObject).ToString());
                 }
             }
             else
@@ -126,6 +139,8 @@ namespace ParentBot.Bots
                     }
                 }
             }
+
+            return null;
         }
 
         private async Task<T> PostActivityToSkill<T>(BotFrameworkSkill targetSkill, Activity activity, CancellationToken cancellationToken)
@@ -144,10 +159,76 @@ namespace ParentBot.Bots
 
         protected override async Task<InvokeResponse> OnTeamsCardActionInvokeAsync(ITurnContext<IInvokeActivity> turnContext, CancellationToken cancellationToken)
         {
-            await turnContext.SendActivityAsync(MessageFactory.Text("hello from OnTeamsCardActionInvokeAsync."));
-            await turnContext.SendActivityAsync(MessageFactory.Attachment(GetOptionsAttachment()), cancellationToken);
+            await turnContext.SendActivityAsync(MessageFactory.Text("Calling skill from OnTeamsCardActionInvokeAsync."));
+
+            if(((JObject)turnContext.Activity.Value).ContainsKey("type") 
+                && ((JObject)turnContext.Activity.Value).Value<string>("type") == "Adaptive Card invoke")
+            {
+                turnContext.Activity.Name = "CustomHealthCheck";
+            }
+
+            await SendToSkill(turnContext, GetSkillFromValue(turnContext.Activity.Value), turnContext.Activity as Activity, cancellationToken);
 
             return new InvokeResponse() { Status = (int)HttpStatusCode.OK };
+        }
+
+        protected override async Task<TaskModuleResponse> OnTeamsTaskModuleFetchAsync(ITurnContext<IInvokeActivity> turnContext, TaskModuleRequest taskModuleRequest, CancellationToken cancellationToken)
+        {
+            var result = await SendToSkill(turnContext, GetSkillFromValue(turnContext.Activity.Value), turnContext.Activity as Activity, cancellationToken);
+
+            var taskModuleResponse = ((JObject)result).Value<JObject>("task");
+            var continueResponse = taskModuleResponse.ToObject<TaskModuleContinueResponse>();
+            return new TaskModuleResponse(continueResponse);
+        }
+
+        private BotFrameworkSkill GetSkillFromValue(object value)
+        {
+            string skillId = null;
+            var valueAsJObject = ((JObject)value);
+            if (valueAsJObject.ContainsKey("skillid"))
+            {
+                skillId = valueAsJObject.Value<string>("skillid");
+                return _skillsConfig.Skills[skillId];
+            }
+            else
+            {
+                // no skillid, so look for 'data' (in the case of TaskModuleFetch, custom properties are under 'data')
+                JToken dataToken = null;
+                if(valueAsJObject.TryGetValue("data",out dataToken))
+                {
+                    if (dataToken.Type.ToString() == "String")
+                    {
+                        var asJobject = JObject.Parse(dataToken.ToString());
+                        skillId = asJobject.Value<string>("skillid");
+                    }
+                    else
+                    {
+                        skillId = dataToken.Value<string>("skillid");
+                    }
+                }
+                else
+                {
+                    var data = valueAsJObject.Value<JObject>("data");
+                    skillId = data.Value<string>("skillid");
+                }
+                return _skillsConfig.Skills.First(s=>s.Value.AppId == skillId).Value;
+            }
+        }
+
+        protected override async Task<TaskModuleResponse> OnTeamsTaskModuleSubmitAsync(ITurnContext<IInvokeActivity> turnContext, TaskModuleRequest taskModuleRequest, CancellationToken cancellationToken)
+        {
+            var result = await SendToSkill(turnContext, GetSkillFromValue(turnContext.Activity.Value), turnContext.Activity as Activity, cancellationToken);
+
+            var taskModuleResponse = ((JObject)result).Value<JObject>("task");
+            var taskType = taskModuleResponse["type"].Value<string>();
+            if(taskType == "message")
+            {
+                var messageResponse = taskModuleResponse.ToObject<TaskModuleMessageResponse>();
+                return new TaskModuleResponse(messageResponse);
+            }
+
+            var continueResponse = taskModuleResponse.ToObject<TaskModuleContinueResponse>();
+            return new TaskModuleResponse(continueResponse);
         }
 
         protected override async Task OnMessageActivityAsync(ITurnContext<IMessageActivity> turnContext, CancellationToken cancellationToken)
@@ -158,7 +239,7 @@ namespace ParentBot.Bots
             {
                 if (text.Contains("teams"))
                 {
-                    var reply = MessageFactory.Attachment(GetAdaptiveCardWithInvokeAction());
+                    var reply = MessageFactory.Attachment(GetAdaptiveCardWithInvokeAction(turnContext.Activity as Activity));
                     await turnContext.SendActivityAsync(reply, cancellationToken);
                     return;
                 }
@@ -178,10 +259,17 @@ namespace ParentBot.Bots
                     // and force the child bot to respond synchronously via ExpectReplies
                     activity.DeliveryMode = DeliveryModes.ExpectReplies;
                 }
-
-                // Send the activity to the skill
-                await SendToSkill(turnContext, _skillsConfig.Skills.Values.First(), activity, cancellationToken);
-
+                if (activity.Value == null || !((JObject)activity.Value).ContainsKey("skillid"))
+                {
+                    await turnContext.SendActivityAsync(MessageFactory.Text($"You said: {text}... this will NOT trigger a skill"), cancellationToken);
+                }
+                else
+                {
+                    // Send the activity to the skill
+                    var skillId = ((JObject)activity.Value).Value<string>("skillid");
+                    var skill = _skillsConfig.Skills[skillId];
+                    await SendToSkill(turnContext, skill, activity, cancellationToken);
+                }
             }
 
             // just respond with choices
